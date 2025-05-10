@@ -2,13 +2,48 @@
 
 import { useEffect, useRef, useState } from "react";
 
-export default function HackerRadar() {
+interface HackerRadarProps {
+  targetImagePath?: string;
+}
+
+export default function HackerRadar({
+  targetImagePath = "/target-icon.png",
+}: HackerRadarProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [angle, setAngle] = useState(0);
-  const [targetVisible, setTargetVisible] = useState(false);
+  const [targetImage, setTargetImage] = useState<HTMLImageElement | null>(null);
 
   // Target position in the top right quadrant
-  const targetPosition = { x: 0.7, y: 0.3 }; // Normalized coordinates (0-1)
+  const targetPosition = { x: 0.6, y: 0.2 }; // Normalized coordinates (0-1)
+
+  // Load target image
+  useEffect(() => {
+    const img = new window.Image();
+    img.src = targetImagePath; // Use the prop instead of hardcoded path
+    img.crossOrigin = "anonymous"; // Prevent CORS issues
+    img.onload = () => {
+      setTargetImage(img);
+    };
+
+    // Fallback in case image doesn't load
+    img.onerror = () => {
+      console.warn("Failed to load target image, using fallback");
+      // Create a fallback image using a data URL
+      const fallbackImg = new window.Image();
+      // Simple red target icon as data URL
+      fallbackImg.src =
+        "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSJyZWQiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48Y2lyY2xlIGN4PSIxMiIgY3k9IjEyIiByPSIxMCIvPjxjaXJjbGUgY3g9IjEyIiBjeT0iMTIiIHI9IjYiLz48Y2lyY2xlIGN4PSIxMiIgY3k9IjEyIiByPSIyIi8+PC9zdmc+";
+      fallbackImg.onload = () => {
+        setTargetImage(fallbackImg);
+      };
+    };
+
+    return () => {
+      // Clean up
+      img.onload = null;
+      img.onerror = null;
+    };
+  }, [targetImagePath]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -30,18 +65,6 @@ export default function HackerRadar() {
     // Animation frame
     const interval = setInterval(() => {
       setAngle((prev) => (prev + 2) % 360);
-
-      // Check if radar is sweeping over the target (with some margin)
-      const targetAngle =
-        (Math.atan2(targetPosition.y - 0.5, targetPosition.x - 0.5) * 180) /
-        Math.PI;
-
-      const normalizedTargetAngle = (targetAngle + 360) % 360;
-      const isNearTarget =
-        Math.abs(angle - normalizedTargetAngle) < 20 ||
-        Math.abs(angle - normalizedTargetAngle - 360) < 20;
-
-      setTargetVisible(isNearTarget);
     }, 30);
 
     // Cleanup
@@ -49,7 +72,7 @@ export default function HackerRadar() {
       clearInterval(interval);
       window.removeEventListener("resize", resizeCanvas);
     };
-  }, [angle]);
+  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -65,8 +88,8 @@ export default function HackerRadar() {
     // Clear canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Draw background
-    ctx.fillStyle = "rgba(0, 20, 0, 0.2)";
+    // Draw background - darker to match the image
+    ctx.fillStyle = "rgba(0, 10, 0, 0.9)";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     // Add some digital noise
@@ -81,13 +104,16 @@ export default function HackerRadar() {
     // Draw radar sweep
     drawRadarSweep(ctx, centerX, centerY, radius, angle);
 
-    // Draw target - always visible but highlighted when detected
-    drawTarget(
-      ctx,
-      centerX + targetPosition.x * radius * 2 - radius,
-      centerY + targetPosition.y * radius * 2 - radius,
-      targetVisible
-    );
+    // Draw target - always with detection effects
+    const targetX = centerX + targetPosition.x * radius * 2 - radius;
+    const targetY = centerY + targetPosition.y * radius * 2 - radius;
+
+    if (targetImage) {
+      drawTargetWithImage(ctx, targetX, targetY, targetImage);
+    } else {
+      // Fallback to original target drawing if image isn't loaded yet
+      drawTarget(ctx, targetX, targetY);
+    }
 
     // Draw center point
     ctx.fillStyle = "rgba(0, 255, 0, 0.8)";
@@ -97,7 +123,7 @@ export default function HackerRadar() {
 
     // Draw coordinates
     drawCoordinates(ctx, canvas.width, canvas.height);
-  }, [angle, targetVisible]);
+  }, [angle, targetImage]);
 
   // Draw digital noise
   const drawNoise = (
@@ -218,28 +244,66 @@ export default function HackerRadar() {
     ctx.stroke();
   };
 
-  // Draw target
-  const drawTarget = (
+  // Draw target with image - always with detection effects
+  const drawTargetWithImage = (
     ctx: CanvasRenderingContext2D,
     x: number,
     y: number,
-    isDetected: boolean
+    image: HTMLImageElement
   ) => {
+    const size = 40; // Size of the target image
+
+    // Save the current context state
+    ctx.save();
+
+    // Enhanced blinking effect - more pronounced
+    const blinkIntensity = Math.sin(Date.now() / 150) * 0.5 + 0.5; // Oscillates between 0 and 1
+
+    // Add glow effect
+    ctx.shadowColor = `rgba(255, 0, 0, ${0.5 + blinkIntensity * 0.5})`;
+    ctx.shadowBlur = 15 + blinkIntensity * 10;
+
+    // Pulsing effect
+    const scale = 1 + Math.sin(Date.now() / 200) * 0.15;
+    ctx.translate(x, y);
+    ctx.scale(scale, scale);
+    ctx.translate(-x, -y);
+
+    // Draw the image centered on the target position
+    ctx.drawImage(image, x - size / 2, y - size / 2, size, size);
+
+    // Restore the context state
+    ctx.restore();
+
+    // Add target info text with blinking effect
+    const textOpacity = 0.7 + blinkIntensity * 0.3;
+    ctx.fillStyle = `rgba(255, 50, 50, ${textOpacity})`;
+    ctx.font = "10px monospace";
+    ctx.fillText("TARGET FOUND", x + size / 2 + 5, y - 5);
+    ctx.fillText("ID: XR-7429", x + size / 2 + 5, y + 7);
+
+    // Add distance - matching the image showing 289m
+    ctx.fillText(`DIST: 289m`, x + size / 2 + 5, y + 19);
+
+    // Add a targeting box around the image - always visible with blinking effect
+    ctx.strokeStyle = `rgba(255, 50, 50, ${textOpacity})`;
+    ctx.lineWidth = 1;
+    ctx.setLineDash([5, 3]); // Dashed line
+    ctx.strokeRect(x - size / 2 - 5, y - size / 2 - 5, size + 10, size + 10);
+    ctx.setLineDash([]); // Reset to solid line
+  };
+
+  // Original target drawing (fallback) - always with detection effects
+  const drawTarget = (ctx: CanvasRenderingContext2D, x: number, y: number) => {
     const size = 10;
 
-    // Base opacity for when not detected
-    const baseOpacity = 0.6;
-
-    // Enhanced blinking effect when detected
-    const blinkEffect = isDetected ? Math.sin(Date.now() / 100) * 0.4 : 0.5;
-    const opacity = baseOpacity + blinkEffect;
-
-    // Color changes based on detection
-    const colorIntensity = isDetected ? 255 : 180;
+    // Enhanced blinking effect - more pronounced
+    const blinkIntensity = Math.sin(Date.now() / 150) * 0.5 + 0.5; // Oscillates between 0 and 1
+    const opacity = 0.7 + blinkIntensity * 0.3;
 
     // Draw target
-    ctx.strokeStyle = `rgba(${colorIntensity}, 50, 50, ${opacity})`;
-    ctx.lineWidth = isDetected ? 2 : 1.5;
+    ctx.strokeStyle = `rgba(255, 50, 50, ${opacity})`;
+    ctx.lineWidth = 2;
 
     // Outer circle
     ctx.beginPath();
@@ -260,28 +324,33 @@ export default function HackerRadar() {
     ctx.stroke();
 
     // Target data
-    ctx.fillStyle = `rgba(${colorIntensity}, 50, 50, ${opacity})`;
+    ctx.fillStyle = `rgba(255, 50, 50, ${opacity})`;
     ctx.font = "10px monospace";
-    ctx.fillText(1 === 1 ? "TARGET FOUND" : "TARGET", x + size * 2, y);
+    ctx.fillText("TARGET FOUND", x + size * 2, y);
     ctx.fillText("ID: XR-7429", x + size * 2, y + 12);
+    ctx.fillText("DIST: 289m", x + size * 2, y + 24);
 
-    // Add a glow effect when detected
-    if (1 === 1) {
-      ctx.beginPath();
-      ctx.arc(x, y, size * 1.5, 0, Math.PI * 2);
-      const glowGradient = ctx.createRadialGradient(
-        x,
-        y,
-        size * 0.5,
-        x,
-        y,
-        size * 2
-      );
-      glowGradient.addColorStop(0, "rgba(255, 50, 50, 0.2)");
-      glowGradient.addColorStop(1, "rgba(255, 50, 50, 0)");
-      ctx.fillStyle = glowGradient;
-      ctx.fill();
-    }
+    // Add a glow effect
+    ctx.beginPath();
+    ctx.arc(x, y, size * 1.5, 0, Math.PI * 2);
+    const glowGradient = ctx.createRadialGradient(
+      x,
+      y,
+      size * 0.5,
+      x,
+      y,
+      size * 2
+    );
+    glowGradient.addColorStop(0, `rgba(255, 50, 50, ${0.3 * blinkIntensity})`);
+    glowGradient.addColorStop(1, "rgba(255, 50, 50, 0)");
+    ctx.fillStyle = glowGradient;
+    ctx.fill();
+
+    // Add a targeting box
+    ctx.strokeStyle = `rgba(255, 50, 50, ${opacity})`;
+    ctx.setLineDash([5, 3]); // Dashed line
+    ctx.strokeRect(x - size * 1.5, y - size * 1.5, size * 3, size * 3);
+    ctx.setLineDash([]); // Reset to solid line
   };
 
   // Draw coordinates
