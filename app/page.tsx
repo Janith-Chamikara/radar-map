@@ -38,7 +38,7 @@ export default function Home() {
             <div>
               <div className="mb-1 text-green-500">SYSTEM STATUS</div>
               <div>CPU: 87%</div>
-              <div>MEM: 1.2GB/4GB</div>
+              <div>MEM: 1.2GB/8GB</div>
               <div>UPTIME: 14:27:33</div>
             </div>
           </div>
