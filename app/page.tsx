@@ -31,9 +31,9 @@ export default function Home() {
           <div className="mt-4 grid grid-cols-2 gap-4 font-mono text-xs text-green-400">
             <div>
               <div className="mb-1 text-green-500">TARGET INFO</div>
-              <div>ID: XR-7429</div>
-              <div>TYPE: SECURE SERVER</div>
-              <div>VULN: HIGH</div>
+              <div>   ID: The P</div>
+              <div>   TYPE: SECURE SERVER</div>
+              <div>   VULN: HIGH</div>
             </div>
             <div>
               <div className="mb-1 text-green-500">SYSTEM STATUS</div>
